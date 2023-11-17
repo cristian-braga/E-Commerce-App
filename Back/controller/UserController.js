@@ -1,6 +1,7 @@
 const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler");
 const { generateToken } = require("../config/jwtToken");
+const { generateRefreshToken } = require("../config/refreshToken");
 const validateMongoDbId = require("../utils/validateMongodbId");
 
 const createUser = asyncHandler(async (request, response) => {
@@ -22,6 +23,22 @@ const loginUser = asyncHandler(async (request, response) => {
   const findUser = await User.findOne({ email });
 
   if (findUser) {
+    const refreshToken = await generateRefreshToken(findUser?._id);
+
+    const updateUser = await User.findByIdAndUpdate(findUser.id,
+      {
+        refreshToken: refreshToken
+      },
+      {
+        new: true
+      }
+    );
+
+    response.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      maxAge: 72 * 60 * 60 * 1000
+    });
+
     response.json(
       {
         _id: findUser?._id,
@@ -80,6 +97,15 @@ const updateUser = asyncHandler(async (request, response) => {
   } catch (error) {
     throw new Error(error);
   }
+});
+
+const handleRefreshToken = asyncHandler(async (request, response) => {
+  const cookie = request.cookies;
+
+  if (!cookie?.refreshToken) throw new Error("Não há novo token nos cookies");
+
+  const refreshToken = cookie.refreshToken;
+  
 });
 
 const deleteUser = asyncHandler(async (request, response) => {
@@ -147,5 +173,6 @@ module.exports = {
   deleteUser,
   updateUser,
   blockUser,
-  unblockUser
+  unblockUser,
+  handleRefreshToken
 };
