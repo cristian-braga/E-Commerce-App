@@ -10,7 +10,10 @@ const {
   updateUser,
   blockUser,
   unblockUser,
-  handleRefreshToken
+  handleRefreshToken,
+  logout,
+  updatePassword,
+  forgotPasswordToken
 } = require("../controller/UserController");
 
 const {
@@ -20,11 +23,17 @@ const {
 
 router.post("/register", createUser);
 
+router.post("/forgot-password-token", forgotPasswordToken);
+
+router.post("/password", authMiddleware, updatePassword);
+
 router.post("/login", loginUser);
 
 router.get("/all-users", getAllUsers);
 
 router.get("/refresh", handleRefreshToken);
+
+router.get("/logout", logout);
 
 router.get("/:id", authMiddleware, isAdmin, getUser);
 

@@ -3,6 +3,7 @@ const asyncHandler = require("express-async-handler");
 const { generateToken } = require("../config/jwtToken");
 const { generateRefreshToken } = require("../config/refreshToken");
 const validateMongoDbId = require("../utils/validateMongodbId");
+const jwt = require("jsonwebtoken");
 
 const createUser = asyncHandler(async (request, response) => {
   const email = request.body.email;
@@ -106,6 +107,49 @@ const handleRefreshToken = asyncHandler(async (request, response) => {
 
   const refreshToken = cookie.refreshToken;
   
+  const user = await User.findOne({ refreshToken });
+
+  if (!user) throw new Error("Não encontrado");
+
+  jwt.verify(refreshToken, process.env.JWT_SECRET, (error, decoded) => {
+    if (error || user.id !== decoded.id) {
+      throw new Error("Há algum problema com o token");
+    }
+
+    const accessToken = generateToken(user?._id);
+  });
+
+  response.json({ accessToken });
+});
+
+const logout = asyncHandler(async (request, response) => {
+  const cookie = request.cookies;
+
+  if (!cookie?.refreshToken) throw new Error("Não há novo token nos cookies");
+
+  const refreshToken = cookie.refreshToken;
+  
+  const user = await User.findOne({ refreshToken });
+
+  if (!user) {
+    response.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: true
+    });
+
+    return response.sendStatus(204);
+  }
+
+  await User.findOneAndUpdate(refreshToken, {
+    refreshToken: ""
+  });
+
+  response.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: true
+  });
+
+  response.sendStatus(204);
 });
 
 const deleteUser = asyncHandler(async (request, response) => {
@@ -165,6 +209,23 @@ const unblockUser = asyncHandler(async (request, response) => {
   }
 });
 
+const updatePassword = asyncHandler(async (request, response) => {
+  const { _id } = request.user;
+  const password = request.body;
+
+  validateMongoDbId(_id);
+
+  const user = await User.findById(_id);
+
+  if (password) {
+    user.password = password;
+
+    const updatedPassword = await User.save();
+
+    response.json(updatedPassword);
+  }
+})
+
 module.exports = {
   createUser,
   loginUser,
@@ -174,5 +235,7 @@ module.exports = {
   updateUser,
   blockUser,
   unblockUser,
-  handleRefreshToken
+  handleRefreshToken,
+  logout,
+  updatePassword
 };
